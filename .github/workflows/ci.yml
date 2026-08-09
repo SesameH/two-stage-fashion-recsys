@@ -1,0 +1,72 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt ruff
+
+      - name: Lint
+        run: ruff check src tests
+
+      # The Kaggle dataset is not in the repository, so the tests that need it skip themselves
+      # (see the pytest.mark.skipif guards in tests/test_no_leakage.py and test_parity.py).
+      # What runs here are the metric unit tests and the synthetic-data ingest test, which is the
+      # part that would silently break a refactor: the metric definition and the leakage
+      # predicates in sql/features/.
+      - name: Tests
+        run: pytest -q
+
+      - name: Report which tests were skipped
+        if: always()
+        run: pytest -q -rs 2>&1 | tail -20
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Builds the serving image to prove the Dockerfile stays valid. The real image bakes in
+      # data/serving/ and models/ranker.txt, neither of which is committed, so this build uses
+      # placeholders and is a syntax-and-dependency check, not a deployable artefact.
+      - name: Build serving image (dependency check)
+        run: |
+          mkdir -p data/serving data/processed models
+          echo '{"as_of":"2020-09-16"}' > data/serving/meta.json
+          : > models/ranker.txt
+          echo '[]' > models/features.json
+          : > data/processed/customer_id_map.parquet
+          docker build -t hm-recsys:ci .
+
+      - name: Container starts and reports unhealthy without real artefacts
+        run: |
+          # A start with empty artefacts must fail loudly rather than serve nonsense. This
+          # asserts the failure is a clean startup error, not a container that comes up and
+          # answers requests with an empty model.
+          docker run -d --name ci -e PORT=8080 -p 8080:8080 hm-recsys:ci || true
+          sleep 10
+          docker logs ci 2>&1 | tail -5
+          if curl -sf -m 5 http://127.0.0.1:8080/health; then
+            echo "::error::service reported healthy with placeholder artefacts"
+            exit 1
+          fi
+          echo "correctly refused to serve without real artefacts"
+
+# Deployment is intentionally not automated. `deploy/cloudrun.sh` publishes a public URL serving
+# Kaggle-derived data; that is a decision a person makes, not something a merge to main triggers.

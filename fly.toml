@@ -1,0 +1,28 @@
+# Fly.io deployment. scale-to-zero keeps this in the few-dollars-a-month range. The cold start
+# it costs was measured, not assumed: 7 s to first HTTP 200 in parquet mode (vs ~55 s if the
+# snapshot were materialised in RAM), so a first click lands in roughly 10-15 s including
+# machine boot, and everything after is warm. See reports/serving.md.
+app = "hm-recsys"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # Measured (reports/serving.md): reading the snapshot as Parquet views instead of
+  # materialising it in RAM cuts resident memory from 3.1 GB to 834 MB and raises p50 from
+  # 39 ms to 63 ms, while p99 is unchanged at ~100 ms. Tail latency is what a user feels, so
+  # trading median for a machine a quarter of the size is the right call here.
+  HM_SERVE_MODE = "parquet"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = "2gb"
+  cpu_kind = "shared"
+  cpus = 2
