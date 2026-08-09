@@ -1,0 +1,17 @@
+duckdb>=1.1
+pandas>=2.2
+pyarrow>=18
+numpy>=2.1
+scipy>=1.14
+lightgbm>=4.5
+implicit>=0.7.2
+faiss-cpu>=1.9.0.post1
+fastapi>=0.115
+uvicorn[standard]>=0.34
+matplotlib>=3.9
+tqdm>=4.67
+pytest>=8.3
+kaggle>=1.6
+locust>=2.32
+tabulate>=0.9
+scikit-learn>=1.5
