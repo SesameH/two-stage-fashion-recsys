@@ -1,0 +1,231 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>H&M two-stage recommender — evaluation console</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root {
+    --bg: #fbfbfa; --panel: #fff; --line: #e6e4e0; --ink: #1c1b19; --dim: #6b6862;
+    --hit: #1a7f4b; --hit-bg: #e8f5ed; --miss: #b4b0a8; --accent: #2b5fd9;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a; --panel: #1e2024; --line: #2f3237; --ink: #e8e6e3; --dim: #97938c;
+      --hit: #4ade80; --hit-bg: #14301f; --miss: #4a4d52; --accent: #7aa2f7;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  header {
+    padding: 18px 24px; border-bottom: 1px solid var(--line); background: var(--panel);
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: baseline;
+  }
+  h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .sub { color: var(--dim); font-size: 12px; }
+  .warn {
+    background: #fff4e5; color: #7a4a00; border: 1px solid #f0d9b5;
+    padding: 8px 12px; border-radius: 6px; font-size: 12px; margin: 12px 24px 0;
+  }
+  @media (prefers-color-scheme: dark) {
+    .warn { background: #2a2113; color: #e8c88a; border-color: #4a3a1c; }
+  }
+  main { padding: 16px 24px 40px; display: grid; gap: 16px; grid-template-columns: 280px 1fr; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+  .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 0 0 10px; }
+  select, button {
+    font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--ink); width: 100%;
+  }
+  button { cursor: pointer; background: var(--accent); color: #fff; border-color: transparent; font-weight: 500; }
+  button:disabled { opacity: .5; cursor: default; }
+  .clist { max-height: 340px; overflow-y: auto; margin-top: 10px; }
+  .crow {
+    padding: 7px 8px; border-radius: 5px; cursor: pointer; font-size: 12px;
+    display: flex; justify-content: space-between; gap: 8px; border: 1px solid transparent;
+  }
+  .crow:hover { background: var(--bg); }
+  .crow.on { border-color: var(--accent); background: var(--bg); }
+  .crow code { font-family: var(--mono); font-size: 11px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+  .stat { border: 1px solid var(--line); border-radius: 7px; padding: 9px 13px; min-width: 108px; }
+  .stat b { display: block; font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 11px; color: var(--dim); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .cols { grid-template-columns: 1fr; } }
+  ol.recs { list-style: none; margin: 0; padding: 0; }
+  ol.recs li {
+    display: flex; gap: 10px; align-items: flex-start; padding: 7px 8px;
+    border-radius: 6px; border: 1px solid transparent;
+  }
+  ol.recs li.hit { background: var(--hit-bg); border-color: var(--hit); }
+  .thumb {
+    width: 40px; height: 52px; flex: 0 0 40px; border-radius: 4px; display: grid;
+    place-items: center; font-size: 9px; text-align: center; color: var(--dim);
+    background: var(--bg); border: 1px solid var(--line); overflow: hidden; line-height: 1.1;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .rname { font-weight: 500; }
+  .rmeta { font-size: 11px; color: var(--dim); }
+  .badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+  .badge {
+    font-family: var(--mono); font-size: 9px; padding: 1px 5px; border-radius: 3px;
+    border: 1px solid var(--line); color: var(--dim);
+  }
+  .rn { font-family: var(--mono); font-size: 11px; color: var(--dim); width: 18px; flex: 0 0 18px; padding-top: 15px; }
+  .tick { margin-left: auto; color: var(--hit); font-weight: 700; padding-top: 15px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 500; font-size: 11px; }
+  .empty { color: var(--dim); padding: 24px 0; text-align: center; }
+  footer { padding: 0 24px 32px; color: var(--dim); font-size: 12px; max-width: 780px; }
+  footer code { font-family: var(--mono); }
+  footer a { color: var(--accent); }
+  .attrib { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 18px; font-size: 11px; }
+</style>
+
+<header>
+  <h1>H&amp;M two-stage recommender</h1>
+  <span class="sub">retrieval (6 strategies, RRF) → LightGBM LambdaRank → top 12</span>
+  <span class="sub" id="hdr-meta" style="margin-left:auto"></span>
+</header>
+
+<div class="warn">
+  Offline replay, not a live service. Every feature is computed as of <b>2020-09-16</b>, and the
+  &ldquo;actually bought&rdquo; column comes from the week <i>after</i> that cutoff — it is
+  ground truth used to mark hits, and it is served by separate endpoints that the recommendation
+  path never reads.
+</div>
+
+<main>
+  <section class="panel">
+    <h2>Pick a customer</h2>
+    <select id="seg"></select>
+    <button id="load" style="margin-top:8px">Sample 20 customers</button>
+    <div class="clist" id="clist"></div>
+  </section>
+
+  <section class="panel" id="detail">
+    <div class="empty">Select a customer to see predictions, attribution and hits.</div>
+  </section>
+</main>
+
+<footer>
+  <p><b>How to read this.</b> Green rows are articles the customer really bought in the target
+  week. Badges show which retrieval strategies proposed each article — <code>r1_repurchase</code>
+  (exact repeat), <code>r6_product_variant</code> (same garment, different colour or size),
+  <code>r2b_global</code> / <code>r2_popularity</code> (bestsellers), <code>r5_category</code>
+  (bestsellers in a category the customer shops).</p>
+  <p>The B2 column is the baseline the project had to beat: the customer's recent purchases,
+  topped up with global bestsellers. It reaches MAP@12 0.02557 against this model's 0.03354.
+  Most customers buy ~3 articles a week out of 105,542, so single-digit hit counts are the
+  normal scale of this problem, not a defect.</p>
+
+  <p class="attrib"><b>Data.</b> Transactions, customer records and product metadata come from
+  the <a href="https://www.kaggle.com/competitions/h-and-m-personalized-fashion-recommendations"
+  rel="noopener">H&amp;M Personalized Fashion Recommendations</a> dataset published on Kaggle by
+  the H&amp;M Group, used here for research and portfolio demonstration only, not for any
+  commercial purpose. Customer identifiers are the dataset's own anonymised hashes; no real
+  personal data is displayed. Product names and descriptions are H&amp;M's. This page is an
+  independent project and is not affiliated with or endorsed by H&amp;M.</p>
+</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+let current = null;
+
+const fmt = n => n === null || n === undefined ? "—" : n;
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// Images are optional: the dataset's 35 GB image set is not part of this deployment. When a
+// file is absent the tile falls back to the product type, which keeps the layout readable.
+function thumb(r) {
+  const id = String(r.article_id).padStart(10, "0");
+  const src = `/images/${id.slice(0, 3)}/${id}.jpg`;
+  const fallback = esc(r.product_type || "?");
+  return `<div class="thumb"><img src="${src}" alt="" loading="lazy"
+    onerror="this.replaceWith(document.createTextNode('${fallback.replace(/'/g, "")}'))"></div>`;
+}
+
+function rec(r) {
+  return `<li class="${r.hit ? "hit" : ""}">
+    <span class="rn">${r.rank}</span>
+    ${thumb(r)}
+    <span>
+      <span class="rname">${esc(r.prod_name || r.article_id)}</span>
+      <div class="rmeta">${esc(r.product_type || "")}${r.colour ? " · " + esc(r.colour) : ""}${
+        r.score !== null && r.score !== undefined ? " · score " + r.score : ""}</div>
+      <div class="badges">${(r.sources || []).map(s => `<span class="badge">${esc(s)}</span>`).join("")}</div>
+    </span>
+    ${r.hit ? '<span class="tick">✓</span>' : ""}
+  </li>`;
+}
+
+async function loadSegments() {
+  const segs = await (await fetch("/api/demo/segments")).json();
+  $("#seg").innerHTML = `<option value="">all segments (${segs.reduce((a, s) => a + s.customers, 0).toLocaleString()})</option>`
+    + segs.map(s => `<option value="${esc(s.recency_segment)}">${esc(s.recency_segment)} — ${s.customers.toLocaleString()}</option>`).join("");
+  const m = await (await fetch("/metrics")).json();
+  $("#hdr-meta").textContent = `as_of ${m.as_of} · ${m.n_trees} trees`;
+}
+
+async function loadCustomers() {
+  const seg = $("#seg").value;
+  const url = "/api/demo/customers?n=20" + (seg ? "&segment=" + encodeURIComponent(seg) : "");
+  const rows = await (await fetch(url)).json();
+  $("#clist").innerHTML = rows.map(r => `
+    <div class="crow" data-id="${r.customer_id}">
+      <code>${r.customer_id.slice(0, 10)}…</code>
+      <span style="color:var(--dim)">${r.n_prior} buys · ${r.recency === null ? "new" : r.recency + "d"}</span>
+    </div>`).join("");
+  $("#clist").querySelectorAll(".crow").forEach(el =>
+    el.onclick = () => explain(el.dataset.id, el));
+}
+
+async function explain(cid, el) {
+  if (current) current.classList.remove("on");
+  if (el) { el.classList.add("on"); current = el; }
+  $("#detail").innerHTML = '<div class="empty">Scoring 300 candidates…</div>';
+  const d = await (await fetch("/api/demo/explain/" + cid)).json();
+
+  $("#detail").innerHTML = `
+    <div class="stats">
+      <div class="stat"><b>${d.model.hits}/${d.truth.n_articles}</b><span>model hits / bought</span></div>
+      <div class="stat"><b>${d.model.ap12}</b><span>AP@12 model</span></div>
+      <div class="stat"><b>${d.b2.ap12}</b><span>AP@12 baseline B2</span></div>
+      <div class="stat"><b>${d.latency_ms} ms</b><span>this request</span></div>
+      <div class="stat"><b>${d.n_candidates}</b><span>candidates ranked</span></div>
+    </div>
+    <div class="cols">
+      <div>
+        <h2>Model top 12</h2>
+        <ol class="recs">${d.model.top.map(rec).join("")}</ol>
+      </div>
+      <div>
+        <h2>Baseline B2 top 12 — ${d.b2.hits} hit${d.b2.hits === 1 ? "" : "s"}</h2>
+        <ol class="recs">${d.b2.top.map(rec).join("")}</ol>
+      </div>
+    </div>
+    <h2 style="margin-top:18px">Purchase history before the cutoff (latest 15)</h2>
+    ${d.history.length ? `<table>
+      <tr><th>date</th><th>article</th><th>type</th><th>colour</th></tr>
+      ${d.history.map(h => `<tr>
+        <td>${new Date(h.t_dat).toISOString().slice(0, 10)}</td>
+        <td>${esc(h.prod_name || h.article_id)}</td>
+        <td>${esc(h.product_type_name || "")}</td>
+        <td>${esc(h.colour_group_name || "")}</td></tr>`).join("")}
+    </table>` : '<div class="empty">No purchases before the cutoff — cold-start customer.</div>'}`;
+}
+
+$("#load").onclick = loadCustomers;
+
+// ?customer=<id> deep-links a specific customer, so a particular result can be shared or
+// captured without clicking through the sampler.
+const requested = new URLSearchParams(location.search).get("customer");
+loadSegments()
+  .then(loadCustomers)
+  .then(() => requested && explain(requested, $(`.crow[data-id="${requested}"]`)));
+</script>
