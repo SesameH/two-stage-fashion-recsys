@@ -4,11 +4,11 @@ Train weeks `['2020-08-12', '2020-08-19', '2020-08-26', '2020-09-02', '2020-09-0
 
 ```json
 {
-  "MAP@12": 0.03354,
-  "recall@12": 0.07112,
-  "NDCG@12": 0.04944,
+  "MAP@12": 0.03296,
+  "recall@12": 0.06883,
+  "NDCG@12": 0.04834,
   "coverage": 1.0,
-  "n_features": 63,
+  "n_features": 59,
   "train_rows": 5620587,
   "train_weeks": [
     "2020-08-12",
@@ -18,7 +18,7 @@ Train weeks `['2020-08-12', '2020-08-19', '2020-08-26', '2020-09-02', '2020-09-0
     "2020-09-09"
   ],
   "neg_ratio": 20,
-  "elapsed_sec": 837.8
+  "elapsed_sec": 765.9
 }
 ```
 
@@ -26,33 +26,33 @@ Train weeks `['2020-08-12', '2020-08-19', '2020-08-26', '2020-09-02', '2020-09-0
 
 | feature                  |     gain |
 |:-------------------------|---------:|
-| score_r6_product_variant | 394694   |
-| rank_r6_product_variant  | 196214   |
-| garment_group_name       | 145372   |
-| cpc_days_since_last      | 127962   |
-| n_sold_1d                | 123817   |
-| rrf_score                | 123531   |
-| days_since_last          | 117679   |
-| rank_r2_popularity       | 102713   |
-| ca_days_since_last       |  98574.5 |
-| rank_r3_item_knn         |  54820.2 |
-| age                      |  50731.4 |
-| trend_ratio              |  49146.2 |
-| days_since_first_sale    |  42623   |
-| price_ratio              |  42080.6 |
-| online_ratio             |  37913.2 |
-| rank_r1_repurchase       |  37076.1 |
-| score_r3_item_knn        |  33243.9 |
-| art_avg_price            |  32616.8 |
-| product_group_name       |  31459   |
-| n_purchases_7d           |  30626.1 |
-| n_sources                |  30352   |
-| max_discount             |  29600.6 |
-| n_buyers                 |  27629.3 |
-| n_sold                   |  27137.1 |
-| score_r2b_global         |  25692.4 |
-| n_sold_30d               |  23815.6 |
-| rank_r2b_global          |  23780.7 |
-| price_z                  |  23511.5 |
-| price_pctile             |  22421.4 |
-| cust_avg_price           |  20808.5 |
+| score_r6_product_variant | 399617   |
+| rank_r6_product_variant  | 210414   |
+| cpc_days_since_last      | 147059   |
+| rrf_score                | 141218   |
+| garment_group_name       | 128047   |
+| n_sold_1d                | 116866   |
+| days_since_last          | 114200   |
+| rank_r2_popularity       | 107613   |
+| ca_days_since_last       |  96926.1 |
+| trend_ratio              |  53662.3 |
+| age                      |  51385.3 |
+| price_ratio              |  45494.2 |
+| days_since_first_sale    |  42247   |
+| product_group_name       |  42185.4 |
+| rank_r1_repurchase       |  37538.3 |
+| online_ratio             |  35525.3 |
+| art_avg_price            |  33293.5 |
+| n_buyers                 |  31002.6 |
+| max_discount             |  27453.5 |
+| price_z                  |  26531   |
+| n_sold_30d               |  25420.1 |
+| rank_r2b_global          |  25002.3 |
+| score_r2b_global         |  24650.8 |
+| price_pctile             |  22981.2 |
+| cust_avg_price           |  22747.3 |
+| n_sold                   |  22679.1 |
+| department_no            |  21825.5 |
+| section_no               |  21443   |
+| cg_days_since_last       |  20479.6 |
+| score_r2_popularity      |  18833.6 |

@@ -44,8 +44,10 @@ echo "==> deploying ${SERVICE}"
 #   100% (147ms -> 294ms p50) because the container filesystem is a network-backed overlay
 #   rather than local NVMe, so per-request file reads are far more expensive. Holding the
 #   snapshot in RAM wins here, and scale-to-zero makes the larger machine nearly free.
-# --min-instances 0: scale to zero. Cold start measured at 7 s to first 200 (reports/serving.md).
-# --concurrency 8: each request holds a DataFrame of 300 candidates x 63 features; unbounded
+# --min-instances 0: scale to zero, which is what keeps this in the few-dollars-a-month range.
+#   The cost is a cold start on the first click, and `memory` mode pays the larger one because it
+#   materialises the snapshot before it can answer anything — measured, see reports/serving.md.
+# --concurrency 8: each request holds a DataFrame of 300 candidates x 59 features; unbounded
 #   concurrency on 2 vCPU turns a burst into an OOM rather than into queueing.
 gcloud run deploy "${SERVICE}" \
   --project "${PROJECT_ID}" \

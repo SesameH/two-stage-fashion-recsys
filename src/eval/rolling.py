@@ -23,7 +23,7 @@ import lightgbm as lgb
 import pandas as pd
 
 from src.baselines import heuristics as h
-from src.config import MODELS, REPORTS, VAL_START, K
+from src.config import MODELS, REPORTS, VAL_START, K, write_report
 from src.data.db import connect, register_customers
 from src.eval.metrics import mapk, recall_at_k
 from src.eval.split import ground_truth
@@ -50,7 +50,7 @@ def evaluate_week(con, booster, features, as_of: date, chunk: int = 4000) -> dic
         "customers": len(customers),
         "MAP@12": round(model_map, 5),
         "B2": round(b2_map, 5),
-        "lift": round(model_map / b2_map - 1, 3),
+        "lift": round(model_map / b2_map - 1, 3) if b2_map else None,
     }
 
 
@@ -83,10 +83,12 @@ def budget_sweep(
         preds = predict_week(
             con, booster, features, as_of, customers, n_candidates=b, chunk=chunk
         )
+        # One `recall` column, not `recall@{b}`: a per-row column name produces one column per
+        # budget and fills the rest of the table with NaN. The cutoff is already the budget column.
         rows.append(
             {
                 "budget": b,
-                f"recall@{b}": round(rec, 5),
+                "recall@budget": round(rec, 5),
                 "MAP@12": round(mapk(actual, [preds.get(c, []) for c in customers], K), 5),
             }
         )
@@ -123,7 +125,8 @@ def main() -> None:
     print(sweep.to_string(index=False))
 
     REPORTS.mkdir(exist_ok=True)
-    (REPORTS / "rolling.md").write_text(
+    write_report(
+        REPORTS / "rolling.md",
         f"# Rolling evaluation\n\n"
         f"One model, scored on consecutive weeks without retraining.\n\n"
         f"Only the row for `{VAL_START}` is a valid generalisation estimate. It is the last\n"

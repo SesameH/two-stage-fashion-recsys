@@ -151,10 +151,22 @@ def test_serving_snapshot_has_no_future_rows(snapshot_as_of):
 
     import duckdb
 
-    n = duckdb.connect().execute(
-        f"SELECT max(days_since_last) FROM read_parquet('{SERVING / 'customer_features.parquet'}')"
-    ).fetchone()[0]
-    assert n is not None and n >= 0, "days_since_last must be non-negative w.r.t. the cutoff"
+    # The predicate is `t_dat < as_of`, so the most recent purchase a snapshot row may reflect
+    # is the day before the cutoff: every recency must be >= 1. A leaked row at or after the
+    # cutoff produces 0 or a negative value, which is what this bound catches. Asserting
+    # `max >= 0` instead would be satisfied by any snapshot at all.
+    lo, hi = duckdb.connect().execute(
+        f"SELECT min(days_since_last), min(days_since_first) "
+        f"FROM read_parquet('{SERVING / 'customer_features.parquet'}')"
+    ).fetchone()
+    assert lo is not None and lo >= 1, f"days_since_last reaches {lo}: snapshot saw the cutoff"
+    assert hi is not None and hi >= 1, f"days_since_first reaches {hi}: snapshot saw the cutoff"
+
+    art = duckdb.connect().execute(
+        f"SELECT min(days_since_last_sale), min(days_since_first_sale) "
+        f"FROM read_parquet('{SERVING / 'article_features.parquet'}')"
+    ).fetchone()
+    assert min(art) >= 1, f"article recency reaches {min(art)}: snapshot saw the cutoff"
 
 
 def test_processed_data_present():

@@ -23,3 +23,8 @@ models/*
 # competition data licence does not cover. Excluding them here means a later `docker build`
 # cannot pick them up by accident — the console already degrades to product-type tiles.
 data/serving/images/
+
+# ALS artefacts: precompute writes item factors and a FAISS index, but R4 is off by default in
+# the ranking pipeline and nothing in src/serve reads them. 73 MB of image for zero requests.
+data/serving/als_*
+

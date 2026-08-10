@@ -53,14 +53,22 @@ def label_candidates(
 def downsample_negatives(
     df: pd.DataFrame, ratio: int = NEG_SAMPLE_RATIO, seed: int = 42
 ) -> pd.DataFrame:
-    """Keep every positive, plus `ratio` negatives per positive, sampled within customer.
+    """Keep every positive, plus `ratio` negatives per positive.
 
-    Customers with no positive at all are dropped: a group with no relevant item contributes
-    nothing to a LambdaRank gradient, and keeping them only inflates training time.
+    Customers with no positive at all are dropped first: a group with no relevant item
+    contributes nothing to a LambdaRank gradient, and keeping them only inflates training time.
 
-    `ratio` also sets the training group size (~ratio+1 candidates), and LambdaRank learns a
-    ranking *within* a group. Serving ranks 300 candidates per customer, so a small ratio
-    trains the model on a task narrower than the one it is deployed on.
+    The negative budget is global — `ratio * n_positives` negatives drawn uniformly from the
+    whole frame — not per customer. Because every retained customer contributes a near-constant
+    ~300 candidates, uniform sampling keeps roughly the same *fraction* of each customer's
+    negatives, so group sizes end up homogeneous rather than proportional to a customer's
+    positive count. Per-customer sampling is the other defensible choice and would make group
+    size scale with positives instead; it has not been measured.
+
+    `ratio` therefore sets the mean training group size (~ratio+1 candidates), and LambdaRank
+    learns a ranking *within* a group. Serving ranks 300 candidates per customer, so a small
+    ratio trains the model on a task narrower than the one it is deployed on. Raising it to 100
+    was tried and made MAP@12 marginally worse (README, "What we tried").
     """
     rng = np.random.default_rng(seed)
     pos_per_customer = df.groupby("customer_key")["label"].transform("sum")

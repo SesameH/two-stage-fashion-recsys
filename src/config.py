@@ -39,6 +39,21 @@ N_CANDIDATES = 300
 NEG_SAMPLE_RATIO = 20  # negatives per positive in TRAINING only, never in validation
 
 
+# --- Report convention ------------------------------------------------------
+# Scripts that regenerate a file under reports/ rewrite everything ABOVE this marker and carry
+# everything below it across unchanged. Without it, `make rolling` and `make bench` silently
+# deleted hand-written sections holding measurements the scripts cannot take — comparisons across
+# model versions, and numbers from inside a container or from Cloud Run.
+MANUAL_MARKER = "<!-- manual: measurements below are hand-written and preserved by the generator -->"
+
+
+def write_report(path, generated: str) -> None:
+    """Write `generated`, preserving any manual section already in `path`."""
+    if path.exists() and MANUAL_MARKER in (existing := path.read_text()):
+        generated = generated.rstrip("\n") + "\n\n" + MANUAL_MARKER + existing.split(MANUAL_MARKER, 1)[1]
+    path.write_text(generated)
+
+
 def week_window(as_of: date) -> tuple[date, date]:
     """The 7-day target window that starts at `as_of`, as a half-open [start, end) pair."""
     return as_of, as_of + timedelta(days=7)

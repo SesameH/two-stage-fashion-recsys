@@ -29,6 +29,7 @@ from src.config import DATA_PROCESSED, FEATURE_LOOKBACK_DAYS, VAL_START
 from src.data.db import connect, load_sql
 from src.features.builder import CUSTOMER_GROUP_ALL_SQL, all_customers_sql
 from src.recall import strategies as st
+from src.recall.pipeline import GENERATOR_BUDGET
 
 SERVING = DATA_PROCESSED.parent / "serving"
 
@@ -149,8 +150,12 @@ def main() -> None:
     parser.add_argument("--as-of", type=date.fromisoformat, default=VAL_START)
     parser.add_argument("--with-als", action="store_true")
     parser.add_argument("--out", type=Path, default=SERVING)
-    parser.add_argument("--n-repurchase", type=int, default=50)
-    parser.add_argument("--n-variants", type=int, default=150)
+    # Defaults come from the retrieval pipeline, not from a second copy of the numbers. Override
+    # only to experiment; a snapshot built with different budgets than training used is skew.
+    parser.add_argument(
+        "--n-repurchase", type=int, default=GENERATOR_BUDGET["r1_repurchase"]
+    )
+    parser.add_argument("--n-variants", type=int, default=GENERATOR_BUDGET["r6_product_variant"])
     parser.add_argument(
         "--with-demo", action="store_true",
         help="also build the demo console tables (these contain post-cutoff data)",
@@ -187,11 +192,15 @@ def main() -> None:
         "variants": st.r6_product_variant(con, as_of, n=args.n_variants)[
             ["customer_key", "article_id", "rank", "score"]
         ],
-        "popularity_global": st.global_popularity_table(con, as_of, n=400),
-        "popularity_age": st.age_popularity_table(con, as_of, n=200),
+        "popularity_global": st.global_popularity_table(
+            con, as_of, n=GENERATOR_BUDGET["r2b_global"]
+        ),
+        "popularity_age": st.age_popularity_table(
+            con, as_of, n=GENERATOR_BUDGET["r2_popularity"]
+        ),
         # R5 is customer-specific and cannot be reduced to a shared table, so it is
         # materialised per customer. Leaving it out of the online path cost measurable MAP.
-        "category_candidates": st.r5_category(con, as_of, n=100)[
+        "category_candidates": st.r5_category(con, as_of, n=GENERATOR_BUDGET["r5_category"])[
             ["customer_key", "article_id", "rank", "score"]
         ],
     }

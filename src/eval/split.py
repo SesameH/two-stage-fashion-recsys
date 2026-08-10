@@ -18,8 +18,9 @@ from src.config import week_window
 def ground_truth(con: duckdb.DuckDBPyConnection, as_of: date) -> pd.DataFrame:
     """Purchases inside [as_of, as_of+7d), one row per customer.
 
-    Returns a DataFrame with columns `customer_key` and `articles` (list of int32 ids,
-    ordered by first purchase time then item id for determinism).
+    Returns a DataFrame with columns `customer_key` and `articles` (distinct article ids, in
+    unspecified order). Order is not fixed because nothing consumes it as an order: `apk`
+    treats the ground truth as a set, and MAP@12 only ranks the *predictions*.
     """
     start, end = week_window(as_of)
     return con.execute(

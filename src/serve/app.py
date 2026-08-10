@@ -42,6 +42,12 @@ from src.serve.precompute import SERVING
 
 LATENCIES: deque[float] = deque(maxlen=10000)
 
+# Model features the request path could not produce and had to fill with an absence sentinel.
+# This should stay empty: a feature the snapshot cannot supply is a feature the model was
+# trained on and never sees in production. It is surfaced on /metrics rather than left silent,
+# and tests/test_parity.py asserts it is empty after a real request.
+UNSERVABLE: set[str] = set()
+
 
 class State:
     con: duckdb.DuckDBPyConnection
@@ -61,9 +67,12 @@ def _load(out: Path = SERVING) -> None:
     state.booster = lgb.Booster(model_file=str(MODELS / "ranker.txt"))
     state.features = json.loads((MODELS / "features.json").read_text())
 
-    # memory: tables in RAM with customer_key indexes — 3.1 GB resident, p50 39 ms.
+    # memory: tables in RAM with customer_key indexes — 3.1 GB resident, p50 39 ms locally.
     # parquet: views over the files, row-group pruning instead of indexes — 834 MB, p50 63 ms,
-    # same p99, 7 s cold start instead of 55 s. Deployments use parquet (reports/serving.md).
+    # same p99, 7 s cold start instead of 55 s.
+    # parquet wins on a laptop and loses on Cloud Run, where the container filesystem is a
+    # network-backed overlay (147 ms vs 294 ms p50 in favour of memory). The deployment
+    # therefore runs `memory`; see reports/serving.md for both measurements.
     mode = os.environ.get("HM_SERVE_MODE", "memory")
     if mode not in ("memory", "parquet"):
         raise ValueError(f"HM_SERVE_MODE must be 'memory' or 'parquet', got {mode!r}")
@@ -196,12 +205,14 @@ def build_request_features(customer_key: int, n_candidates: int = N_CANDIDATES) 
         return cand
     cand.insert(0, "customer_key", customer_key)
     feats = build_features_serving(state.con, cand, customer_key)
-    # Strategies missing from the snapshot must be encoded the way the offline pipeline encodes
-    # "not proposed by this source". Measured effect was small (0.02371 -> 0.02375); the point is
-    # that the two paths cannot disagree about what absence looks like.
+    # A feature the snapshot cannot supply is encoded the way the offline pipeline encodes "not
+    # proposed by this source", so the two paths at least agree on what absence looks like. It is
+    # still skew — the model was trained on a column that is now constant — so the names are
+    # recorded and reported on /metrics instead of being patched silently.
     for f in state.features:
         if f not in feats.columns:
             feats[f] = MISSING_RANK if f.startswith("rank_") else MISSING_SCORE
+            UNSERVABLE.add(f)
     return feats
 
 
@@ -376,17 +387,26 @@ def demo_explain(customer_id: str):
             "n_articles": len(truth_ids),
             "article_ids": sorted(int(a) for a in truth_ids),
         },
-        "model": {"top": model_rows, "hits": int(model_hits), "ap12": round(_ap(model_rows), 4)},
-        "b2": {"top": b2_rows, "hits": int(b2_hits), "ap12": round(_ap(b2_rows), 4)},
+        "model": {
+            "top": model_rows,
+            "hits": int(model_hits),
+            "ap12": round(_ap(model_rows, truth_ids), 4),
+        },
+        "b2": {"top": b2_rows, "hits": int(b2_hits), "ap12": round(_ap(b2_rows, truth_ids), 4)},
     }
 
 
-def _ap(rows: list[dict]) -> float:
-    """AP@12 for one customer, from already-marked rows."""
+def _ap(rows: list[dict], truth_ids: set) -> float:
+    """AP@12 for one customer, on the same definition the offline metric uses.
+
+    The ground truth must be the customer's full purchase set, not the subset that happens to
+    have been predicted. `apk` divides by `min(len(actual), 12)`, so passing only the hits makes
+    every single-hit-at-rank-1 customer score a perfect 1.0 — the console reported AP that way
+    and it flattered both rows.
+    """
     from src.eval.metrics import apk
 
-    truth = [r["article_id"] for r in rows if r["hit"]]
-    return 0.0 if not truth else apk(truth, [r["article_id"] for r in rows], K)
+    return apk(truth_ids, [r["article_id"] for r in rows], K)
 
 
 @app.get("/metrics")
@@ -399,6 +419,7 @@ def metrics():
         "n_trees": state.booster.num_trees(),
         "serve_mode": state.mode,
         "requests": len(LATENCIES),
+        "unservable_features": sorted(UNSERVABLE),
     }
     if LATENCIES:
         arr = np.array(LATENCIES)

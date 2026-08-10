@@ -11,6 +11,10 @@ Two numbers this produces that a modelling-only project cannot:
 
 In-process mode is the default because it isolates the recommender from the HTTP stack; the
 `--http` mode adds the server and client overhead back so the two can be compared.
+
+This rewrites `reports/serving.md` above `config.MANUAL_MARKER` only. Everything below it —
+container and Cloud Run measurements, which cannot be produced from a laptop process — is
+preserved. Before that marker existed, `make bench` deleted them.
 """
 
 from __future__ import annotations
@@ -23,7 +27,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from src.config import REPORTS, K
+from src.config import REPORTS, K, write_report
 from src.eval.metrics import mapk
 
 
@@ -70,6 +74,58 @@ def bench_http(customer_ids: list[str], base: str, n_candidates: int) -> dict:
             r.read()
         samples.append((time.perf_counter() - t) * 1000)
     return {"n_candidates": n_candidates, "requests": len(samples), **percentiles(samples)}
+
+
+def parity(customer_keys: list[int], truth: dict[int, list[int]]) -> dict:
+    """Score the same customers through the offline pipeline and the request path.
+
+    This used to be a hand-run comparison whose numbers appeared in the README with no command
+    behind them. It is measured here so the claim moves or breaks when the code does.
+
+    The two paths read different storage by design, so equality is the thing worth asserting:
+    identical top 12 for every customer means the snapshot, the retrieval budgets and the feature
+    blocks all still agree.
+    """
+    from src.config import VAL_START
+    from src.data.db import connect, register_customers
+    from src.features.builder import build_features
+    from src.recall.pipeline import build_candidates
+    from src.serve import app as srv
+
+    online = {ck: srv.recommend(ck)[0] for ck in customer_keys}
+
+    con = connect()
+    register_customers(con, list(customer_keys))
+    cand = build_candidates(con, VAL_START, list(customer_keys))
+    feats = build_features(con, cand, VAL_START)
+    con.close()
+
+    scores = srv.state.booster.predict(feats[srv.state.features])
+    frame = pd.DataFrame(
+        {
+            "customer_key": feats["customer_key"].to_numpy(),
+            "article_id": feats["article_id"].to_numpy(),
+            "score": scores,
+        }
+    ).sort_values(["customer_key", "score"], ascending=[True, False], kind="stable")
+    offline = {
+        int(c): v[:K]
+        for c, v in frame.groupby("customer_key")["article_id"].apply(list).items()
+    }
+
+    scored = [c for c in customer_keys if c in truth]
+    overlaps = [
+        len(set(offline.get(c, [])) & set(online.get(c, []))) / K for c in customer_keys
+    ]
+    return {
+        "customers": len(customer_keys),
+        "MAP@12 offline": round(mapk([truth[c] for c in scored], [offline.get(c, []) for c in scored], K), 5),
+        "MAP@12 online": round(mapk([truth[c] for c in scored], [online.get(c, []) for c in scored], K), 5),
+        "mean top-12 overlap": round(float(np.mean(overlaps)), 4),
+        "identical top 12": round(
+            sum(offline.get(c, []) == online.get(c, []) for c in customer_keys) / len(customer_keys), 4
+        ),
+    }
 
 
 def compression_curve(customer_keys: list[int], truth: dict[int, list[int]], trees: list[int]):
@@ -137,6 +193,10 @@ def main() -> None:
     lat = pd.DataFrame([bench_inprocess(keys, b) for b in args.budgets])
     print(lat.to_string(index=False))
 
+    print("\noffline/online parity:")
+    par = parity(keys, truth)
+    print(json.dumps(par, indent=2))
+
     print("\ncompression trade-off:")
     comp = compression_curve(keys, truth, args.trees)
 
@@ -158,6 +218,12 @@ def main() -> None:
         ),
         "## Latency by candidate budget (in-process)\n",
         lat.to_markdown(index=False) + "\n",
+        "## Offline/online parity\n",
+        (
+            "The offline pipeline and the request path scored on the same customers. They read "
+            "different storage by design, so an identical top 12 is the assertion worth making.\n"
+        ),
+        pd.DataFrame([par]).T.rename(columns={0: "value"}).to_markdown() + "\n",
         "## Compression trade-off\n",
         (
             "Tree count truncated at predict time via `num_iteration`; MAP@12 recomputed on "
@@ -167,7 +233,8 @@ def main() -> None:
     ]
     if http_rows is not None:
         parts += ["## Over HTTP (uvicorn, single worker)\n", http_rows.to_markdown(index=False) + "\n"]
-    (REPORTS / "serving.md").write_text("\n".join(parts))
+
+    write_report(REPORTS / "serving.md", "\n".join(parts))
     print(f"\nwrote {REPORTS / 'serving.md'}")
     print(json.dumps({"latency": lat.to_dict("records")}, indent=2)[:400])
 

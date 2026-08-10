@@ -36,10 +36,12 @@ from src.rank.dataset import (
 )
 from src.rank.predict import predict_week
 
+# No `metric`/`eval_at` here: `fit` is called without an `eval_set`, so LightGBM would only warn
+# about them and never evaluate anything. Tree count is fixed rather than early-stopped because
+# the only week that could stop it honestly is a held-out training week, and the count was chosen
+# that way instead — see README, "Tree count".
 PARAMS = {
     "objective": "lambdarank",
-    "metric": "map",
-    "eval_at": [K],
     "n_estimators": 500,
     "learning_rate": 0.05,
     "num_leaves": 63,

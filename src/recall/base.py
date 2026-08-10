@@ -35,8 +35,8 @@ def empty() -> pd.DataFrame:
 def normalize(df: pd.DataFrame, source: str) -> pd.DataFrame:
     """Coerce a strategy's raw output into the contract."""
     out = df.copy()
-    # Categorical, not object: the long frames reach tens of millions of rows and one Python
-    # string reference per row is enough to OOM the training-set build.
+    # Categorical, not a string column: the long frames reach tens of millions of rows, and
+    # `union` is careful to keep the encoding across the concatenation.
     out["source"] = pd.Categorical([source] * len(out), categories=[source])
     out["customer_key"] = out["customer_key"].astype("int64")
     out["article_id"] = out["article_id"].astype("int32")
@@ -47,11 +47,20 @@ def normalize(df: pd.DataFrame, source: str) -> pd.DataFrame:
 
 def union(*frames: pd.DataFrame) -> pd.DataFrame:
     """Concatenate strategy outputs. Duplicates across sources are kept, not merged —
-    the ranking stage needs to see that an item was proposed by several strategies."""
+    the ranking stage needs to see that an item was proposed by several strategies.
+
+    The re-cast is not cosmetic. Each frame arrives with `source` as a single-category
+    Categorical, and concatenating categoricals whose category sets differ drops the encoding —
+    pandas 3 falls back to its string dtype, which costs 36 MB per 2M rows against 2 MB for the
+    categorical. The union reaches ~21M rows per week, so the fallback silently adds ~350 MB to
+    the peak that OOM-killed this build before it was chunked.
+    """
     frames = [f for f in frames if f is not None and len(f)]
     if not frames:
         return empty()
-    return pd.concat(frames, ignore_index=True)
+    out = pd.concat(frames, ignore_index=True)
+    out["source"] = out["source"].astype("category")
+    return out
 
 
 RRF_K = 60.0  # standard damping constant; the metric is insensitive to it in 20-100
