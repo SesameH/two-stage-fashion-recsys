@@ -8,18 +8,24 @@
 <style>
   /* Nothing design system, dark-primary. Monochrome canvas; red is an interrupt, not decoration,
      so it appears exactly once (the brand mark). Hit/miss is a data status, which the system
-     exempts from the one-accent rule — encoded on the value, never as a row background. */
+     exempts from the one-accent rule — encoded on the value, never as a row background.
+
+     Two deliberate departures from the reference dark palette, both for legibility: the page
+     sits on a near-black rather than OLED #000, and every grey is lifted one step. The first
+     draft used #666 (4:1) for body copy, which is the token meant for disabled text — readable
+     as a label, not as a paragraph. Content now starts at #B4B4B4 (9.5:1) and nothing below
+     #8A8A8A carries words the reader needs. */
   :root {
-    --black: #000000;
-    --surface: #111111;
-    --border: #222222;
-    --border-visible: #333333;
-    --text-disabled: #666666;
-    --text-secondary: #999999;
-    --text-primary: #E8E8E8;
+    --black: #0C0D0F;
+    --surface: #16181B;
+    --border: #26292E;
+    --border-visible: #3A3E45;
+    --text-disabled: #8A8A8E;
+    --text-secondary: #B4B4B8;
+    --text-primary: #ECECEE;
     --text-display: #FFFFFF;
     --accent: #D71921;
-    --success: #4A9E5C;
+    --success: #5CBF72;
     --warning: #D4A843;
 
     --space-xs: 4px;  --space-sm: 8px;  --space-md: 16px; --space-lg: 24px;
@@ -31,9 +37,10 @@
   }
   @media (prefers-color-scheme: light) {
     :root {
-      --black: #F5F5F5; --surface: #FFFFFF; --border: #E8E8E8; --border-visible: #CCCCCC;
-      --text-disabled: #999999; --text-secondary: #666666;
+      --black: #F5F5F5; --surface: #FFFFFF; --border: #E4E4E4; --border-visible: #C4C4C4;
+      --text-disabled: #6E6E6E; --text-secondary: #4A4A4A;
       --text-primary: #1A1A1A; --text-display: #000000;
+      --success: #2E7D46;
     }
   }
 
@@ -66,13 +73,17 @@
   }
   .notice {
     padding: 0 var(--space-xl) var(--space-lg); max-width: 780px;
-    font-size: 13px; color: var(--text-disabled);
+    font-size: 13px; color: var(--text-secondary);
   }
-  .notice b { color: var(--text-secondary); font-weight: 400; }
+  .notice b { color: var(--text-primary); font-weight: 500; }
 
   main {
-    display: grid; grid-template-columns: 240px 1fr;
-    gap: var(--space-2xl); padding: 0 var(--space-xl) var(--space-3xl);
+    display: grid; grid-template-columns: 250px 1fr; align-items: start;
+    gap: var(--space-lg); padding: 0 var(--space-xl) var(--space-3xl);
+  }
+  main > section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: var(--space-lg);
   }
   @media (max-width: 940px) { main { grid-template-columns: 1fr; gap: var(--space-xl); } }
 
@@ -102,7 +113,7 @@
   .crow:hover { border-left-color: var(--border-visible); }
   .crow[aria-current="true"] { border-left-color: var(--text-display); }
   .crow .id { font-family: var(--mono); color: var(--text-primary); }
-  .crow .meta { font-family: var(--mono); font-size: 11px; color: var(--text-disabled); }
+  .crow .meta { font-family: var(--mono); font-size: 11px; color: var(--text-secondary); }
 
   /* Primary layer: one number, absurdly large, floating on the background — never boxed. */
   .hero { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2xl);
@@ -130,23 +141,23 @@
     display: flex; gap: var(--space-md); align-items: flex-start;
     padding: var(--space-md) 0; border-bottom: 1px solid var(--border);
   }
-  .rank { font-family: var(--mono); font-size: 11px; color: var(--text-disabled);
+  .rank { font-family: var(--mono); font-size: 11px; color: var(--text-secondary);
           width: 22px; flex: 0 0 22px; padding-top: 2px; }
   .thumb {
     width: 40px; height: 52px; flex: 0 0 40px; display: grid; place-items: center;
     padding: 2px; overflow: hidden; border: 1px solid var(--border);
     font-family: var(--mono); font-size: 8px; line-height: 1.15; text-align: center;
-    color: var(--text-disabled);
+    color: var(--text-secondary);
   }
   .thumb img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1); }
   .item { min-width: 0; flex: 1; }
   .item .name { color: var(--text-primary); }
-  .item .attrs { font-family: var(--mono); font-size: 11px; color: var(--text-disabled);
+  .item .attrs { font-family: var(--mono); font-size: 11px; color: var(--text-secondary);
                  margin-top: 2px; }
   .srcs { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-top: var(--space-sm); }
   .src { font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em;
-         color: var(--text-disabled); border: 1px solid var(--border); padding: 1px 5px;
-         border-radius: 3px; }
+         color: var(--text-secondary); border: 1px solid var(--border-visible);
+         padding: 1px 5px; border-radius: 3px; }
   /* Status on the value, not the row: a rule and a word, so it survives greyscale printing. */
   .status { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
             align-self: center; margin-left: auto; padding-left: var(--space-sm); }
@@ -158,18 +169,18 @@
   th { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
        text-transform: uppercase; color: var(--text-secondary); font-weight: 400;
        border-bottom-color: var(--border-visible); }
-  td.d { font-family: var(--mono); color: var(--text-disabled); font-size: 12px; }
+  td.d { font-family: var(--mono); color: var(--text-secondary); font-size: 12px; }
 
   .state { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em;
-           color: var(--text-disabled); padding: var(--space-3xl) 0; }
+           color: var(--text-secondary); padding: var(--space-3xl) 0; }
 
-  footer { padding: 0 var(--space-xl) var(--space-3xl); max-width: 780px;
-           color: var(--text-disabled); font-size: 13px; }
+  footer { padding: var(--space-xl) var(--space-xl) var(--space-3xl); max-width: 780px;
+           color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
   footer h2 { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
               text-transform: uppercase; color: var(--text-secondary);
               font-weight: 400; margin: var(--space-xl) 0 var(--space-sm); }
-  footer code { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); }
-  footer a { color: var(--text-secondary); }
+  footer code { font-family: var(--mono); font-size: 12px; color: var(--text-primary); }
+  footer a { color: var(--text-primary); }
   .attrib { margin-top: var(--space-xl); padding-top: var(--space-md);
             border-top: 1px solid var(--border); font-size: 11px; line-height: 1.7; }
 </style>

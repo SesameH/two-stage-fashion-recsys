@@ -391,19 +391,24 @@ def _ap(rows: list[dict]) -> float:
 
 @app.get("/metrics")
 def metrics():
-    if not LATENCIES:
-        return {"requests": 0}
-    arr = np.array(LATENCIES)
-    return {
-        "requests": len(arr),
-        "p50_ms": round(float(np.percentile(arr, 50)), 2),
-        "p95_ms": round(float(np.percentile(arr, 95)), 2),
-        "p99_ms": round(float(np.percentile(arr, 99)), 2),
-        "max_ms": round(float(arr.max()), 2),
+    # Service facts are reported whether or not anything has been served yet; they describe the
+    # deployment, not the traffic. Omitting them on an idle instance left the console rendering
+    # "as_of undefined" on a cold page load.
+    out = {
         "as_of": state.as_of.isoformat(),
         "n_trees": state.booster.num_trees(),
         "serve_mode": state.mode,
+        "requests": len(LATENCIES),
     }
+    if LATENCIES:
+        arr = np.array(LATENCIES)
+        out |= {
+            "p50_ms": round(float(np.percentile(arr, 50)), 2),
+            "p95_ms": round(float(np.percentile(arr, 95)), 2),
+            "p99_ms": round(float(np.percentile(arr, 99)), 2),
+            "max_ms": round(float(arr.max()), 2),
+        }
+    return out
 
 
 @app.get("/health")
