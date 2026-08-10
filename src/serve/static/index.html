@@ -1,229 +1,348 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>H&M two-stage recommender — evaluation console</title>
+<title>H&M Two-Stage Recommender — Evaluation Console</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@400;700&family=Space+Grotesk:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
+  /* Nothing design system, dark-primary. Monochrome canvas; red is an interrupt, not decoration,
+     so it appears exactly once (the brand mark). Hit/miss is a data status, which the system
+     exempts from the one-accent rule — encoded on the value, never as a row background. */
   :root {
-    --bg: #fbfbfa; --panel: #fff; --line: #e6e4e0; --ink: #1c1b19; --dim: #6b6862;
-    --hit: #1a7f4b; --hit-bg: #e8f5ed; --miss: #b4b0a8; --accent: #2b5fd9;
-    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --black: #000000;
+    --surface: #111111;
+    --border: #222222;
+    --border-visible: #333333;
+    --text-disabled: #666666;
+    --text-secondary: #999999;
+    --text-primary: #E8E8E8;
+    --text-display: #FFFFFF;
+    --accent: #D71921;
+    --success: #4A9E5C;
+    --warning: #D4A843;
+
+    --space-xs: 4px;  --space-sm: 8px;  --space-md: 16px; --space-lg: 24px;
+    --space-xl: 32px; --space-2xl: 48px; --space-3xl: 64px;
+
+    --sans: "Space Grotesk", "DM Sans", system-ui, sans-serif;
+    --mono: "Space Mono", "JetBrains Mono", "SF Mono", monospace;
+    --dot: "Doto", "Space Mono", monospace;
   }
-  @media (prefers-color-scheme: dark) {
+  @media (prefers-color-scheme: light) {
     :root {
-      --bg: #16171a; --panel: #1e2024; --line: #2f3237; --ink: #e8e6e3; --dim: #97938c;
-      --hit: #4ade80; --hit-bg: #14301f; --miss: #4a4d52; --accent: #7aa2f7;
+      --black: #F5F5F5; --surface: #FFFFFF; --border: #E8E8E8; --border-visible: #CCCCCC;
+      --text-disabled: #999999; --text-secondary: #666666;
+      --text-primary: #1A1A1A; --text-display: #000000;
     }
   }
+
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    margin: 0; background: var(--black); color: var(--text-primary);
+    font: 400 14px/1.5 var(--sans);
+    -webkit-font-smoothing: antialiased;
   }
+
+  /* Type roles. Three working sizes plus one display size, which is the single pattern break. */
+  .lbl {
+    font-family: var(--mono); font-size: 11px; line-height: 1.2; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-secondary);
+  }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
   header {
-    padding: 18px 24px; border-bottom: 1px solid var(--line); background: var(--panel);
-    display: flex; flex-wrap: wrap; gap: 16px; align-items: baseline;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-lg);
+    padding: var(--space-lg) var(--space-xl);
   }
-  h1 { font-size: 16px; margin: 0; font-weight: 600; }
-  .sub { color: var(--dim); font-size: 12px; }
-  .warn {
-    background: #fff4e5; color: #7a4a00; border: 1px solid #f0d9b5;
-    padding: 8px 12px; border-radius: 6px; font-size: 12px; margin: 12px 24px 0;
+  header h1 {
+    margin: 0; font-size: 14px; font-weight: 500; letter-spacing: 0.02em;
+    color: var(--text-display);
   }
-  @media (prefers-color-scheme: dark) {
-    .warn { background: #2a2113; color: #e8c88a; border-color: #4a3a1c; }
+  /* The one red moment on the page. */
+  .mark {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--accent); margin-right: var(--space-sm);
   }
-  main { padding: 16px 24px 40px; display: grid; gap: 16px; grid-template-columns: 280px 1fr; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
-  .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 0 0 10px; }
-  select, button {
-    font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
-    background: var(--bg); color: var(--ink); width: 100%;
+  .notice {
+    padding: 0 var(--space-xl) var(--space-lg); max-width: 780px;
+    font-size: 13px; color: var(--text-disabled);
   }
-  button { cursor: pointer; background: var(--accent); color: #fff; border-color: transparent; font-weight: 500; }
-  button:disabled { opacity: .5; cursor: default; }
-  .clist { max-height: 340px; overflow-y: auto; margin-top: 10px; }
+  .notice b { color: var(--text-secondary); font-weight: 400; }
+
+  main {
+    display: grid; grid-template-columns: 240px 1fr;
+    gap: var(--space-2xl); padding: 0 var(--space-xl) var(--space-3xl);
+  }
+  @media (max-width: 940px) { main { grid-template-columns: 1fr; gap: var(--space-xl); } }
+
+  select {
+    font: 400 13px var(--sans); width: 100%; padding: var(--space-sm) var(--space-sm);
+    border: 1px solid var(--border-visible); border-radius: 4px;
+    background: var(--black); color: var(--text-primary);
+  }
+  button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    width: 100%; margin-top: var(--space-sm); padding: 10px; cursor: pointer;
+    border: 1px solid var(--text-primary); border-radius: 4px;
+    background: transparent; color: var(--text-primary);
+    transition: color 180ms cubic-bezier(.25,.1,.25,1), border-color 180ms cubic-bezier(.25,.1,.25,1);
+  }
+  button:hover { color: var(--text-display); border-color: var(--text-display); }
+
+  /* Structurally identical rows: the one place the system allows dividers. */
+  .clist { margin-top: var(--space-lg); }
   .crow {
-    padding: 7px 8px; border-radius: 5px; cursor: pointer; font-size: 12px;
-    display: flex; justify-content: space-between; gap: 8px; border: 1px solid transparent;
+    display: flex; justify-content: space-between; gap: var(--space-sm);
+    padding: var(--space-sm) 0 var(--space-sm) var(--space-sm);
+    border-bottom: 1px solid var(--border); border-left: 2px solid transparent;
+    cursor: pointer; font-size: 12px;
+    transition: border-color 180ms cubic-bezier(.25,.1,.25,1);
   }
-  .crow:hover { background: var(--bg); }
-  .crow.on { border-color: var(--accent); background: var(--bg); }
-  .crow code { font-family: var(--mono); font-size: 11px; }
-  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
-  .stat { border: 1px solid var(--line); border-radius: 7px; padding: 9px 13px; min-width: 108px; }
-  .stat b { display: block; font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .stat span { font-size: 11px; color: var(--dim); }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 760px) { .cols { grid-template-columns: 1fr; } }
+  .crow:hover { border-left-color: var(--border-visible); }
+  .crow[aria-current="true"] { border-left-color: var(--text-display); }
+  .crow .id { font-family: var(--mono); color: var(--text-primary); }
+  .crow .meta { font-family: var(--mono); font-size: 11px; color: var(--text-disabled); }
+
+  /* Primary layer: one number, absurdly large, floating on the background — never boxed. */
+  .hero { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2xl);
+          margin-bottom: var(--space-2xl); }
+  .hero .value {
+    font-family: var(--dot); font-size: 76px; line-height: 0.9; letter-spacing: -0.03em;
+    font-weight: 400; color: var(--text-display);
+  }
+  .hero .caption { margin-top: var(--space-sm); }
+  .facts { display: flex; flex-wrap: wrap; gap: var(--space-xl); padding-bottom: var(--space-xs); }
+  .fact .v { font-family: var(--mono); font-size: 22px; color: var(--text-primary); }
+  .fact .v.up { color: var(--success); }
+  .fact .v.down { color: var(--accent); }
+  .fact .lbl { margin-top: var(--space-xs); display: block; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2xl); }
+  @media (max-width: 820px) { .cols { grid-template-columns: 1fr; gap: var(--space-xl); } }
+  .colhead {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border-visible);
+  }
+
   ol.recs { list-style: none; margin: 0; padding: 0; }
   ol.recs li {
-    display: flex; gap: 10px; align-items: flex-start; padding: 7px 8px;
-    border-radius: 6px; border: 1px solid transparent;
+    display: flex; gap: var(--space-md); align-items: flex-start;
+    padding: var(--space-md) 0; border-bottom: 1px solid var(--border);
   }
-  ol.recs li.hit { background: var(--hit-bg); border-color: var(--hit); }
+  .rank { font-family: var(--mono); font-size: 11px; color: var(--text-disabled);
+          width: 22px; flex: 0 0 22px; padding-top: 2px; }
   .thumb {
-    width: 40px; height: 52px; flex: 0 0 40px; border-radius: 4px; display: grid;
-    place-items: center; font-size: 9px; text-align: center; color: var(--dim);
-    background: var(--bg); border: 1px solid var(--line); overflow: hidden; line-height: 1.1;
+    width: 40px; height: 52px; flex: 0 0 40px; display: grid; place-items: center;
+    padding: 2px; overflow: hidden; border: 1px solid var(--border);
+    font-family: var(--mono); font-size: 8px; line-height: 1.15; text-align: center;
+    color: var(--text-disabled);
   }
-  .thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .rname { font-weight: 500; }
-  .rmeta { font-size: 11px; color: var(--dim); }
-  .badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
-  .badge {
-    font-family: var(--mono); font-size: 9px; padding: 1px 5px; border-radius: 3px;
-    border: 1px solid var(--line); color: var(--dim);
-  }
-  .rn { font-family: var(--mono); font-size: 11px; color: var(--dim); width: 18px; flex: 0 0 18px; padding-top: 15px; }
-  .tick { margin-left: auto; color: var(--hit); font-weight: 700; padding-top: 15px; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); }
-  th { color: var(--dim); font-weight: 500; font-size: 11px; }
-  .empty { color: var(--dim); padding: 24px 0; text-align: center; }
-  footer { padding: 0 24px 32px; color: var(--dim); font-size: 12px; max-width: 780px; }
-  footer code { font-family: var(--mono); }
-  footer a { color: var(--accent); }
-  .attrib { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 18px; font-size: 11px; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1); }
+  .item { min-width: 0; flex: 1; }
+  .item .name { color: var(--text-primary); }
+  .item .attrs { font-family: var(--mono); font-size: 11px; color: var(--text-disabled);
+                 margin-top: 2px; }
+  .srcs { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-top: var(--space-sm); }
+  .src { font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em;
+         color: var(--text-disabled); border: 1px solid var(--border); padding: 1px 5px;
+         border-radius: 3px; }
+  /* Status on the value, not the row: a rule and a word, so it survives greyscale printing. */
+  .status { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+            align-self: center; margin-left: auto; padding-left: var(--space-sm); }
+  .status.hit { color: var(--success); border-left: 2px solid var(--success); }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: var(--space-sm) var(--space-sm) var(--space-sm) 0;
+           border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+       text-transform: uppercase; color: var(--text-secondary); font-weight: 400;
+       border-bottom-color: var(--border-visible); }
+  td.d { font-family: var(--mono); color: var(--text-disabled); font-size: 12px; }
+
+  .state { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em;
+           color: var(--text-disabled); padding: var(--space-3xl) 0; }
+
+  footer { padding: 0 var(--space-xl) var(--space-3xl); max-width: 780px;
+           color: var(--text-disabled); font-size: 13px; }
+  footer h2 { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+              text-transform: uppercase; color: var(--text-secondary);
+              font-weight: 400; margin: var(--space-xl) 0 var(--space-sm); }
+  footer code { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); }
+  footer a { color: var(--text-secondary); }
+  .attrib { margin-top: var(--space-xl); padding-top: var(--space-md);
+            border-top: 1px solid var(--border); font-size: 11px; line-height: 1.7; }
 </style>
 
 <header>
-  <h1>H&amp;M two-stage recommender</h1>
-  <span class="sub">retrieval (6 strategies, RRF) → LightGBM LambdaRank → top 12</span>
-  <span class="sub" id="hdr-meta" style="margin-left:auto"></span>
+  <h1><span class="mark"></span>H&amp;M Two-Stage Recommender</h1>
+  <span class="lbl">Retrieval ×6 → RRF → LambdaRank → Top 12</span>
+  <span class="lbl" id="meta" style="margin-left:auto"></span>
 </header>
 
-<div class="warn">
-  Offline replay, not a live service. Every feature is computed as of <b>2020-09-16</b>, and the
-  &ldquo;actually bought&rdquo; column comes from the week <i>after</i> that cutoff — it is
-  ground truth used to mark hits, and it is served by separate endpoints that the recommendation
-  path never reads.
-</div>
+<p class="notice">
+  <b>Offline replay, not a live storefront.</b> Features are computed as of 2020-09-16. The
+  “bought” column comes from the week after that cutoff — ground truth used to mark hits, served
+  by endpoints the recommendation path never reads.
+</p>
 
 <main>
-  <section class="panel">
-    <h2>Pick a customer</h2>
-    <select id="seg"></select>
-    <button id="load" style="margin-top:8px">Sample 20 customers</button>
+  <section>
+    <span class="lbl">Select customer</span>
+    <div style="margin-top:var(--space-sm)">
+      <select id="seg"></select>
+      <button id="load">Sample 20</button>
+    </div>
     <div class="clist" id="clist"></div>
   </section>
 
-  <section class="panel" id="detail">
-    <div class="empty">Select a customer to see predictions, attribution and hits.</div>
+  <section id="detail">
+    <div class="state">[ SELECT A CUSTOMER ]</div>
   </section>
 </main>
 
 <footer>
-  <p><b>How to read this.</b> Green rows are articles the customer really bought in the target
-  week. Badges show which retrieval strategies proposed each article — <code>r1_repurchase</code>
-  (exact repeat), <code>r6_product_variant</code> (same garment, different colour or size),
-  <code>r2b_global</code> / <code>r2_popularity</code> (bestsellers), <code>r5_category</code>
-  (bestsellers in a category the customer shops).</p>
-  <p>The B2 column is the baseline the project had to beat: the customer's recent purchases,
-  topped up with global bestsellers. It reaches MAP@12 0.02557 against this model's 0.03354.
-  Most customers buy ~3 articles a week out of 105,542, so single-digit hit counts are the
-  normal scale of this problem, not a defect.</p>
+  <h2>Reading this</h2>
+  <p>Rows marked <b style="color:var(--success)">HIT</b> are articles the customer really bought
+  in the target week. The tags name the retrieval strategies that proposed each article:
+  <code>r1_repurchase</code> exact repeat, <code>r6_product_variant</code> the same garment in
+  another colour or size, <code>r2b_global</code> and <code>r2_popularity</code> bestsellers,
+  <code>r5_category</code> bestsellers in a category this customer shops.</p>
+  <p>B2 is the baseline this project had to beat — a customer's recent purchases topped up with
+  bestsellers, reaching MAP@12 0.02557 against the model's 0.03354. Customers buy roughly three
+  articles a week out of 105,542, so single-digit hit counts are the scale of the problem rather
+  than a defect.</p>
 
-  <p class="attrib"><b>Data.</b> Transactions, customer records and product metadata come from
-  the <a href="https://www.kaggle.com/competitions/h-and-m-personalized-fashion-recommendations"
+  <p class="attrib"><b>Data.</b> Transactions, customer records and product metadata come from the
+  <a href="https://www.kaggle.com/competitions/h-and-m-personalized-fashion-recommendations"
   rel="noopener">H&amp;M Personalized Fashion Recommendations</a> dataset published on Kaggle by
   the H&amp;M Group, used here for research and portfolio demonstration only, not for any
   commercial purpose. Customer identifiers are the dataset's own anonymised hashes; no real
   personal data is displayed. Product names and descriptions are H&amp;M's. This page is an
-  independent project and is not affiliated with or endorsed by H&amp;M.</p>
+  independent project, not affiliated with or endorsed by H&amp;M.</p>
 </footer>
 
 <script>
 const $ = s => document.querySelector(s);
-let current = null;
+let selected = null;
 
-const fmt = n => n === null || n === undefined ? "—" : n;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pad2 = n => String(n).padStart(2, "0");
 
-// Images are optional: the dataset's 35 GB image set is not part of this deployment. When a
-// file is absent the tile falls back to the product type, which keeps the layout readable.
+// Images are optional — they are not part of a public deployment. A missing file falls back to
+// the product type so the row keeps its shape.
 function thumb(r) {
   const id = String(r.article_id).padStart(10, "0");
-  const src = `/images/${id.slice(0, 3)}/${id}.jpg`;
-  const fallback = esc(r.product_type || "?");
-  return `<div class="thumb"><img src="${src}" alt="" loading="lazy"
-    onerror="this.replaceWith(document.createTextNode('${fallback.replace(/'/g, "")}'))"></div>`;
+  const fallback = esc(r.product_type || "—").replace(/'/g, "");
+  return `<span class="thumb"><img src="/images/${id.slice(0, 3)}/${id}.jpg" alt="" loading="lazy"
+    onerror="this.replaceWith(document.createTextNode('${fallback}'))"></span>`;
 }
 
-function rec(r) {
-  return `<li class="${r.hit ? "hit" : ""}">
-    <span class="rn">${r.rank}</span>
+function row(r) {
+  const attrs = [r.product_type, r.colour, r.score].filter(v => v !== null && v !== undefined && v !== "");
+  return `<li>
+    <span class="rank">${pad2(r.rank)}</span>
     ${thumb(r)}
-    <span>
-      <span class="rname">${esc(r.prod_name || r.article_id)}</span>
-      <div class="rmeta">${esc(r.product_type || "")}${r.colour ? " · " + esc(r.colour) : ""}${
-        r.score !== null && r.score !== undefined ? " · score " + r.score : ""}</div>
-      <div class="badges">${(r.sources || []).map(s => `<span class="badge">${esc(s)}</span>`).join("")}</div>
+    <span class="item">
+      <span class="name">${esc(r.prod_name || r.article_id)}</span>
+      <span class="attrs">${attrs.map(esc).join(" · ")}</span>
+      <span class="srcs">${(r.sources || []).map(s => `<span class="src">${esc(s)}</span>`).join("")}</span>
     </span>
-    ${r.hit ? '<span class="tick">✓</span>' : ""}
+    ${r.hit ? '<span class="status hit">HIT</span>' : ""}
   </li>`;
 }
 
 async function loadSegments() {
   const segs = await (await fetch("/api/demo/segments")).json();
-  $("#seg").innerHTML = `<option value="">all segments (${segs.reduce((a, s) => a + s.customers, 0).toLocaleString()})</option>`
-    + segs.map(s => `<option value="${esc(s.recency_segment)}">${esc(s.recency_segment)} — ${s.customers.toLocaleString()}</option>`).join("");
+  const total = segs.reduce((a, s) => a + s.customers, 0);
+  $("#seg").innerHTML =
+    `<option value="">All segments — ${total.toLocaleString()}</option>` +
+    segs.map(s => `<option value="${esc(s.recency_segment)}">${esc(s.recency_segment)} — ${s.customers.toLocaleString()}</option>`).join("");
   const m = await (await fetch("/metrics")).json();
-  $("#hdr-meta").textContent = `as_of ${m.as_of} · ${m.n_trees} trees`;
+  $("#meta").textContent = `as_of ${m.as_of} / ${m.n_trees} trees / ${m.serve_mode || "—"}`;
 }
 
 async function loadCustomers() {
   const seg = $("#seg").value;
-  const url = "/api/demo/customers?n=20" + (seg ? "&segment=" + encodeURIComponent(seg) : "");
-  const rows = await (await fetch(url)).json();
+  const rows = await (await fetch("/api/demo/customers?n=20" + (seg ? "&segment=" + encodeURIComponent(seg) : ""))).json();
   $("#clist").innerHTML = rows.map(r => `
-    <div class="crow" data-id="${r.customer_id}">
-      <code>${r.customer_id.slice(0, 10)}…</code>
-      <span style="color:var(--dim)">${r.n_prior} buys · ${r.recency === null ? "new" : r.recency + "d"}</span>
+    <div class="crow" data-id="${r.customer_id}" role="button" tabindex="0">
+      <span class="id">${r.customer_id.slice(0, 10)}</span>
+      <span class="meta">${r.n_prior} / ${r.recency === null ? "new" : r.recency + "d"}</span>
     </div>`).join("");
-  $("#clist").querySelectorAll(".crow").forEach(el =>
-    el.onclick = () => explain(el.dataset.id, el));
+  $("#clist").querySelectorAll(".crow").forEach(el => {
+    el.onclick = () => explain(el.dataset.id, el);
+    el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); el.click(); } };
+  });
 }
 
 async function explain(cid, el) {
-  if (current) current.classList.remove("on");
-  if (el) { el.classList.add("on"); current = el; }
-  $("#detail").innerHTML = '<div class="empty">Scoring 300 candidates…</div>';
+  if (selected) selected.removeAttribute("aria-current");
+  if (el) { el.setAttribute("aria-current", "true"); selected = el; }
+  $("#detail").innerHTML = '<div class="state">[ RANKING 300 CANDIDATES… ]</div>';
+
   const d = await (await fetch("/api/demo/explain/" + cid)).json();
+  const delta = d.model.ap12 - d.b2.ap12;
+  const sign = delta > 0 ? "+" : delta < 0 ? "" : "±";
+  const dir = delta > 0 ? "up" : delta < 0 ? "down" : "";
 
   $("#detail").innerHTML = `
-    <div class="stats">
-      <div class="stat"><b>${d.model.hits}/${d.truth.n_articles}</b><span>model hits / bought</span></div>
-      <div class="stat"><b>${d.model.ap12}</b><span>AP@12 model</span></div>
-      <div class="stat"><b>${d.b2.ap12}</b><span>AP@12 baseline B2</span></div>
-      <div class="stat"><b>${d.latency_ms} ms</b><span>this request</span></div>
-      <div class="stat"><b>${d.n_candidates}</b><span>candidates ranked</span></div>
+    <div class="hero">
+      <div>
+        <div class="value">${d.model.ap12.toFixed(3)}</div>
+        <span class="lbl caption">Average precision @12</span>
+      </div>
+      <div class="facts">
+        <div class="fact">
+          <div class="v">${d.b2.ap12.toFixed(3)}</div>
+          <span class="lbl">Baseline B2</span>
+        </div>
+        <div class="fact">
+          <div class="v ${dir}">${sign}${delta.toFixed(3)}</div>
+          <span class="lbl">Versus baseline</span>
+        </div>
+        <div class="fact">
+          <div class="v">${pad2(d.model.hits)}<span style="color:var(--text-disabled)">/${pad2(d.truth.n_articles)}</span></div>
+          <span class="lbl">Hits / bought</span>
+        </div>
+        <div class="fact">
+          <div class="v">${d.latency_ms}<span style="color:var(--text-disabled)">ms</span></div>
+          <span class="lbl">This request</span>
+        </div>
+        <div class="fact">
+          <div class="v">${d.n_candidates}</div>
+          <span class="lbl">Candidates ranked</span>
+        </div>
+      </div>
     </div>
+
     <div class="cols">
       <div>
-        <h2>Model top 12</h2>
-        <ol class="recs">${d.model.top.map(rec).join("")}</ol>
+        <div class="colhead"><span class="lbl">Model — top 12</span><span class="lbl">${d.model.hits} hit</span></div>
+        <ol class="recs">${d.model.top.map(row).join("")}</ol>
       </div>
       <div>
-        <h2>Baseline B2 top 12 — ${d.b2.hits} hit${d.b2.hits === 1 ? "" : "s"}</h2>
-        <ol class="recs">${d.b2.top.map(rec).join("")}</ol>
+        <div class="colhead"><span class="lbl">Baseline B2 — top 12</span><span class="lbl">${d.b2.hits} hit</span></div>
+        <ol class="recs">${d.b2.top.map(row).join("")}</ol>
       </div>
     </div>
-    <h2 style="margin-top:18px">Purchase history before the cutoff (latest 15)</h2>
+
+    <div class="colhead" style="margin-top:var(--space-2xl)">
+      <span class="lbl">History before cutoff</span><span class="lbl">${d.history.length} shown</span>
+    </div>
     ${d.history.length ? `<table>
-      <tr><th>date</th><th>article</th><th>type</th><th>colour</th></tr>
+      <tr><th>Date</th><th>Article</th><th>Type</th><th>Colour</th></tr>
       ${d.history.map(h => `<tr>
-        <td>${new Date(h.t_dat).toISOString().slice(0, 10)}</td>
+        <td class="d">${new Date(h.t_dat).toISOString().slice(0, 10)}</td>
         <td>${esc(h.prod_name || h.article_id)}</td>
-        <td>${esc(h.product_type_name || "")}</td>
-        <td>${esc(h.colour_group_name || "")}</td></tr>`).join("")}
-    </table>` : '<div class="empty">No purchases before the cutoff — cold-start customer.</div>'}`;
+        <td class="d">${esc(h.product_type_name || "")}</td>
+        <td class="d">${esc(h.colour_group_name || "")}</td></tr>`).join("")}
+    </table>` : '<div class="state">[ NO HISTORY — COLD START ]</div>'}`;
 }
 
 $("#load").onclick = loadCustomers;
 
-// ?customer=<id> deep-links a specific customer, so a particular result can be shared or
-// captured without clicking through the sampler.
+// ?customer=<id> deep-links a result so it can be shared or captured directly.
 const requested = new URLSearchParams(location.search).get("customer");
 loadSegments()
   .then(loadCustomers)
