@@ -64,3 +64,26 @@ Fly's machine boot, a cold click lands around 10-15 s and every request after th
 That is what makes scale-to-zero acceptable here. Had cold start stayed at 55 s the honest
 choice would have been to pay for an always-on machine, because nobody clicking a portfolio link
 waits a minute.
+
+## Deployed on Cloud Run — where the local conclusion inverted
+
+Live at `https://hm-recsys-vpllq7symq-an.a.run.app` (2 vCPU, scale to zero, asia-northeast1).
+Both snapshot modes were re-measured against the deployed service, because the tradeoff chosen
+on a laptop turned out not to transfer:
+
+| snapshot mode | local container p50 | Cloud Run p50 | Cloud Run p95 |
+|---|---|---|---|
+| `parquet` | 63 ms | 294 ms | 336 ms |
+| `memory` | 39 ms | **147 ms** | 210 ms |
+
+Locally, parquet mode costs 62% of the median to save 74% of resident memory — clearly worth
+it. On Cloud Run it costs 100%. The cause is the filesystem: Cloud Run's container filesystem is
+a network-backed overlay, not local NVMe, so a mode built around reading files per request pays
+a much higher price there. The deployment therefore runs `memory` mode on a 4 GiB machine, which
+scale-to-zero makes nearly free.
+
+End-to-end from a client in Taiwan is p50 375 ms against a server-side 147 ms; the remaining
+~228 ms is TLS and round trips to Tokyo, not the recommender.
+
+The general point is the same one this project keeps running into: a number measured on the
+development machine is a hypothesis about production, not a result. This one happened to invert.

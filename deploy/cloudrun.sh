@@ -39,8 +39,11 @@ docker build --platform linux/amd64 -t "${IMAGE}" .
 docker push "${IMAGE}"
 
 echo "==> deploying ${SERVICE}"
-# --memory 2Gi: the service holds ~834 MB resident in parquet mode, and Cloud Run's /tmp is a
-#   tmpfs that counts against the same limit, so any DuckDB spill eats into it. 1Gi is too tight.
+# --memory 4Gi and HM_SERVE_MODE=memory: measured on Cloud Run, not assumed. Locally the parquet
+#   mode costs 62% of p50 to save 74% of memory and is the obvious choice; on Cloud Run it costs
+#   100% (147ms -> 294ms p50) because the container filesystem is a network-backed overlay
+#   rather than local NVMe, so per-request file reads are far more expensive. Holding the
+#   snapshot in RAM wins here, and scale-to-zero makes the larger machine nearly free.
 # --min-instances 0: scale to zero. Cold start measured at 7 s to first 200 (reports/serving.md).
 # --concurrency 8: each request holds a DataFrame of 300 candidates x 63 features; unbounded
 #   concurrency on 2 vCPU turns a burst into an OOM rather than into queueing.
@@ -50,13 +53,13 @@ gcloud run deploy "${SERVICE}" \
   --image "${IMAGE}" \
   --platform managed \
   --allow-unauthenticated \
-  --memory 2Gi \
+  --memory 4Gi \
   --cpu 2 \
   --min-instances 0 \
   --max-instances 4 \
   --concurrency 8 \
   --timeout 60s \
-  --set-env-vars HM_SERVE_MODE=parquet
+  --set-env-vars HM_SERVE_MODE=memory
 
 URL=$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" \
         --region "${REGION}" --format 'value(status.url)')

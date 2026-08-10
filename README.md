@@ -11,6 +11,9 @@ calibrated against a public leaderboard.
 
 ## Demo
 
+**Live: https://hm-recsys-vpllq7symq-an.a.run.app** — scale-to-zero, so the first request
+after an idle period takes a few seconds.
+
 ![Evaluation console](docs/console.png)
 
 The console is an offline replay, not a live service: features are computed as of 2020-09-16 and
@@ -39,9 +42,12 @@ PROJECT_ID=my-project ./deploy/cloudrun.sh                         # Google Clou
 fly deploy                                                          # Fly.io (fly.toml present)
 ```
 
-Set `HM_SERVE_MODE=parquet` in any environment smaller than ~4 GB: it holds 834 MB resident
-instead of 3.1 GB and starts in 7 s instead of 55 s, at no cost to p99 (see
-[reports/serving.md](reports/serving.md)). Both deployment configs set it.
+`HM_SERVE_MODE` picks how the snapshot is opened, and the right answer turned out to depend on
+where it runs. Locally, `parquet` holds 834 MB instead of 3.1 GB and starts in 7 s instead of
+55 s for 62% more median latency — clearly worth it. On Cloud Run the same mode costs 100% more
+(294 ms versus 147 ms p50), because the container filesystem is a network-backed overlay rather
+than local NVMe, so the deployment uses `memory` on a 4 GiB machine. Numbers for both are in
+[reports/serving.md](reports/serving.md).
 
 Deployment is not wired into CI. The workflow in
 [.github/workflows/ci.yml](.github/workflows/ci.yml) lints, runs the tests, and builds the image
@@ -422,7 +428,10 @@ the 3.4 MB model). Measured inside the container, 240 requests per mode:
 | `memory` — tables materialised, customer_key indexes | 3.1 GiB | 39.1 ms | 49.7 ms | 96.0 ms |
 | `parquet` — Parquet views, row-group pruning | **834 MiB** | 63.4 ms | 88.1 ms | **101.8 ms** |
 
-**3.8x less memory for 1.6x the median, and p99 unchanged.** `category_candidates` is 22.8M
+**3.8x less memory for 1.6x the median, and p99 unchanged** — locally. On Cloud Run the same
+comparison inverts (147 ms versus 294 ms p50 in favour of `memory`), which is covered in
+[reports/serving.md](reports/serving.md) and is the clearest example in this project of a
+laptop measurement being a hypothesis about production rather than a result. `category_candidates` is 22.8M
 rows on its own, which is what made the in-memory copy expensive. Deployment uses `parquet`
 (`HM_SERVE_MODE` in fly.toml): tail latency is what a user experiences and it did not move.
 
