@@ -34,3 +34,74 @@ Tree count truncated at predict time via `num_iteration`; MAP@12 recomputed on t
 |     100 |            20 |  0.02961 |    32.12 |    34.04 |    37.52 |     32.36 |    89.17 |
 |      50 |            10 |  0.02982 |    32.2  |    36.58 |    52.73 |     33.03 |   122.35 |
 |      25 |             5 |  0.0286  |    31.72 |    33.44 |    35.02 |     31.88 |   106.07 |
+
+<!-- manual: measurements below are hand-written and preserved by the generator -->
+
+## Containerised, and the memory/latency tradeoff
+
+Image 499 MB (`python:3.12-slim` + 7 serving dependencies + the 244 MB snapshot + the 3.4 MB
+model). Measured inside the container, 240 requests each:
+
+| snapshot mode | resident memory | p50 | p95 | p99 |
+|---|---|---|---|---|
+| `memory` — every table materialised, customer_key indexes | 3.1 GiB | 39.1 ms | 49.7 ms | 96.0 ms |
+| `parquet` — Parquet views, row-group pruning, no indexes | **834 MiB** | 63.4 ms | 88.1 ms | **101.8 ms** |
+
+3.8x less memory for 1.6x the median — and p99 is unchanged. `category_candidates` alone is
+22.8M rows, which is what makes the in-memory copy expensive.
+
+On this evidence alone `parquet` is the right default: tail latency is what a user experiences
+and it did not move, while the median is 24 ms slower on a machine a quarter of the size. That
+conclusion does not survive contact with Cloud Run — see below, which is why the deployment ships
+`memory` instead.
+
+It is also a cleaner comparison than the tree-count curve above. Pruning the model to a fifth of
+its trees returns 4.7% of p50 for 1.0% of MAP@12; changing how the snapshot is opened returns a
+74% memory reduction for 0% of MAP@12. Neither is a large win, but only one of them touches
+accuracy at all.
+
+For reference, in-process (no HTTP, no container) is p50 34.4 ms / p99 39.1 ms, so the
+container and HTTP stack account for the rest.
+
+## Cold start
+
+Scale to zero is what keeps this in the few-dollars-a-month range, and the cost is a cold start on
+the first click. Measured in a local container, since that is where both modes can be compared:
+
+| | parquet mode | memory mode |
+|---|---|---|
+| container start to first HTTP 200 | **7 s** | ~55 s |
+| first request after boot | 357 ms | — |
+| second request | 162 ms | — |
+
+The 8x difference has the same cause as the memory difference: `memory` mode materialises 22.8M
+rows of `category_candidates` before it can answer anything, `parquet` mode opens a view.
+
+An earlier version of this section read the 7 s figure as licence to scale to zero, and said that
+"had cold start stayed at 55 s the honest choice would have been an always-on machine". The
+deployment then shipped `memory` — the 55 s branch — because the latency comparison inverted in
+production, and the sentence stayed. Both halves cannot be true at once. The Cloud Run cold start
+is measured below rather than inferred from either.
+
+## Deployed on Cloud Run — where the local conclusion inverted
+
+Live at `https://hm-recsys-vpllq7symq-an.a.run.app` (2 vCPU, scale to zero, asia-northeast1).
+Both snapshot modes were re-measured against the deployed service, because the tradeoff chosen
+on a laptop turned out not to transfer:
+
+| snapshot mode | local container p50 | Cloud Run p50 | Cloud Run p95 |
+|---|---|---|---|
+| `parquet` | 63 ms | 294 ms | 336 ms |
+| `memory` | 39 ms | **147 ms** | 210 ms |
+
+Locally, parquet mode costs 62% of the median to save 74% of resident memory — clearly worth
+it. On Cloud Run it costs 100%. The cause is the filesystem: Cloud Run's container filesystem is
+a network-backed overlay, not local NVMe, so a mode built around reading files per request pays
+a much higher price there. The deployment therefore runs `memory` mode on a 4 GiB machine, which
+scale-to-zero makes nearly free.
+
+End-to-end from a client in Taiwan is p50 375 ms against a server-side 147 ms; the remaining
+~228 ms is TLS and round trips to Tokyo, not the recommender.
+
+The general point is the same one this project keeps running into: a number measured on the
+development machine is a hypothesis about production, not a result. This one happened to invert.
