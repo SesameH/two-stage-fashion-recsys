@@ -1,8 +1,9 @@
 # Two-Stage Fashion Recommendation System (H&M)
 
-> Status: **complete through Phase 6** — data layer, evaluation, baselines, retrieval,
-> ranking, error analysis, serving, and the offline/online parity test. Not deployed to a
-> public URL yet. Nothing is reported here that has not been measured.
+> Status: **complete and deployed.** Data layer, evaluation, baselines, retrieval, ranking,
+> error analysis, serving, offline/online parity test, and a live Cloud Run instance. Nothing is
+> reported here that has not been measured, and the claims deliberately *not* made are listed in
+> [reports/resume.md](reports/resume.md).
 
 Predict the 12 articles a customer will buy in the next 7 days, from 31M H&M transactions.
 Retrieval narrows ~105K articles to 300 candidates per customer; a LambdaRank model orders
