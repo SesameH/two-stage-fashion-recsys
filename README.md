@@ -10,8 +10,9 @@ FastAPI on Cloud Run.
 | **This system** — 5-strategy retrieval + LambdaRank | **0.03296** | **+28.9%** |
 | a published silver-medal Kaggle solution, for scale | 0.02996 | different week, same metric |
 
-**[▶ Open the live console](https://hm-recsys-vpllq7symq-an.a.run.app)** — scale-to-zero, so the
-first click after an idle period takes a few seconds. p50 147 ms once warm.
+**[▶ Open the live console](https://hm-recsys-vpllq7symq-an.a.run.app)** — it scales to zero, so
+a first click on a cold instance takes about 22 s while the snapshot loads into memory. Every
+request after that is ~150 ms.
 
 ![Evaluation console](docs/console.gif)
 

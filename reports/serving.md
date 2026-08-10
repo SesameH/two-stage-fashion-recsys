@@ -80,8 +80,25 @@ rows of `category_candidates` before it can answer anything, `parquet` mode open
 An earlier version of this section read the 7 s figure as licence to scale to zero, and said that
 "had cold start stayed at 55 s the honest choice would have been an always-on machine". The
 deployment then shipped `memory` — the 55 s branch — because the latency comparison inverted in
-production, and the sentence stayed. Both halves cannot be true at once. The Cloud Run cold start
-is measured below rather than inferred from either.
+production, and the sentence stayed. Both halves could not be true at once, so the deployed cold
+start was measured instead of inferred from either:
+
+| after 17 minutes idle, `memory` mode on Cloud Run | |
+|---|---|
+| first request (instance cold) | **22.5 s** |
+| second request | 0.20 s |
+| `/api/demo/explain` warm | 0.81 s |
+
+22.5 s, against 55 s for the same mode in a local container. Cloud Run's 2 vCPU builds the
+in-memory tables faster than the laptop container did, so the local figure was pessimistic — the
+third time in this project that a development-machine measurement failed to transfer, and the only
+one that transferred in the project's favour.
+
+It is still 22.5 s, which is not "a few seconds", and the README says so plainly rather than
+hedging. The alternatives are both worse for a portfolio link: `min-instances 1` removes the wait
+and costs roughly $25/month for an idle 4 GiB instance, and `parquet` mode starts in a fraction of
+the time but doubles the median for every warm request thereafter. Waiting once beats paying
+monthly or being slower forever.
 
 ## Deployed on Cloud Run — where the local conclusion inverted
 
