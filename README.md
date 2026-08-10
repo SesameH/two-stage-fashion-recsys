@@ -1,26 +1,52 @@
 # Two-Stage Fashion Recommendation System (H&M)
 
-> Status: **complete and deployed.** Data layer, evaluation, baselines, retrieval, ranking,
-> error analysis, serving, offline/online parity test, and a live Cloud Run instance. Nothing is
-> reported here that has not been measured, and the claims deliberately *not* made are listed in
-> [reports/resume.md](reports/resume.md).
+**Predict the 12 articles a customer buys next week, from 31.8M H&M transactions.** Retrieval
+narrows 105K articles to 300 candidates; a LightGBM LambdaRank model re-ranks them. Served behind
+FastAPI on Cloud Run.
 
-Predict the 12 articles a customer will buy in the next 7 days, from 31M H&M transactions.
-Retrieval narrows ~105K articles to 300 candidates per customer; a LambdaRank model orders
-them. Scored with MAP@12, the same metric as the Kaggle competition, so results can be
-calibrated against a public leaderboard.
+| on the 2020-09-16 validation week, 68,984 buyers | MAP@12 | |
+|---|---|---|
+| B2 — repurchase + bestseller fill, the baseline to beat | 0.02557 | |
+| **This system** — 5-strategy retrieval + LambdaRank | **0.03296** | **+28.9%** |
+| a published silver-medal Kaggle solution, for scale | 0.02996 | different week, same metric |
+
+**[▶ Open the live console](https://hm-recsys-vpllq7symq-an.a.run.app)** — scale-to-zero, so the
+first click after an idle period takes a few seconds. p50 147 ms once warm.
+
+![Evaluation console](docs/console.gif)
+
+Every number in this README is measured, with the command that reproduces it in
+[reports/resume.md](reports/resume.md) — including the ones that came out negative. Four of the
+five interventions tried after the first working version failed to clear the noise floor, and they
+are written up as failures.
+
+### Which number is which
+
+MAP@12 appears at three sample sizes in this README, which is not the same thing as three results.
+Sample size is stated everywhere it appears; this is the key:
+
+| number | population | where it comes from |
+|---|---|---|
+| **0.03296** | all 68,984 validation-week buyers | the headline. `make train`, `make rolling` |
+| 0.02992 | 3,000-customer serving benchmark | `make bench` — latency, compression, offline/online parity. A harder random sample; both paths score it identically |
+| 0.03226 | 15,000 customers on **2020-09-09** | `make tune-trees` — hyperparameter selection only, on a week that is neither trained on nor reported |
+
+The three are not comparable to each other and none of them is a "best" number. Comparisons within
+this README are always between rows measured on the same population.
 
 ## Demo
-
-**Live: https://hm-recsys-vpllq7symq-an.a.run.app** — scale-to-zero, so the first request
-after an idle period takes a few seconds.
-
-![Evaluation console](docs/console.png)
 
 The console is an offline replay, not a live service: features are computed as of 2020-09-16 and
 the "actually bought" column is the week after that cutoff. It exists to show the things a
 shopping UI cannot — whether each prediction was right, which retrieval strategy proposed it,
 and what the same customer's baseline prediction looked like.
+
+![Evaluation console, full page](docs/console.png)
+
+The tiles show product type rather than photographs. That is what a deployed instance shows: the
+images are H&M's commercial photography and the dataset licence does not cover serving them from a
+public URL, so `.gitignore` and `.dockerignore` both exclude them and `make images` is a local-only
+convenience.
 
 ```bash
 make setup && make download && make data   # once

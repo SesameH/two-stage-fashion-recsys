@@ -1,4 +1,4 @@
-.PHONY: setup download data baselines recall train analyze rolling serve-data serve images bench test lint clean
+.PHONY: setup download data baselines recall train tune-trees analyze rolling serve-data serve images bench test lint clean
 export PYTHONPATH := .
 
 PY := .venv/bin/python
@@ -34,6 +34,9 @@ recall:
 
 train:
 	$(PY) -m src.rank.train
+
+tune-trees:
+	$(PY) -m src.rank.tune_trees
 
 analyze:
 	$(PY) -m src.eval.analyze
